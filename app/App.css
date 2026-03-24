@@ -1,0 +1,24 @@
+  /* @media (max-width: 768px) {
+    .main-layout {
+      flex-direction: column;
+    }
+    .sidebar {
+      width: 100%;
+      border-right: none;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .viewer {
+      padding: 16px;
+    }
+    .viewer-controls {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .page-controls, .zoom-controls {
+      justify-content: center;
+    }
+    .thumbnail {
+      width: 70px;
+      height: 90px;
+    }
+  } */
