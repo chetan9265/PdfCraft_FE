@@ -10,10 +10,11 @@ import {
 } from 'react-icons/fi'
 import { MdOutlinePreview } from 'react-icons/md'
 
+
 export default function PDFEditor({ pdfFile, onClose }) {
   // ===== ALL YOUR EXISTING STATE & FUNCTIONS GO HERE =====
   // Core state
-  const [pdfjsLib, setPdfjsLib] = useState(null)
+const [pdfLib, setPdfLib] = useState(null)
   const [isClient, setIsClient] = useState(false)
   const [librariesLoaded, setLibrariesLoaded] = useState(false)
   const [pdfDocument, setPdfDocument] = useState(null)
@@ -84,27 +85,30 @@ export default function PDFEditor({ pdfFile, onClose }) {
   }, [])
 
   // Load libraries
-  useEffect(() => {
-    setIsClient(true)
-    const loadLibraries = async () => {
-      try {
-        const pdfjs = await import('pdfjs-dist/legacy/build/pdf')
-        pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-        setPdfjsLib(pdfjs)
+ useEffect(() => {
+  setIsClient(true)
+
+  const loadLibraries = async () => {
+    try {
+      const pdfjs = await import("pdfjs-dist/legacy/build/pdf")
+      pdfjs.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
+        setPdfLib(pdfjs)     
         setLibrariesLoaded(true)
-      } catch (err) {
-        setError("Failed to load PDF libraries: " + err.message)
-      }
+    } catch (err) {
+      setError("Failed to load PDF libraries: " + err.message)
     }
-    loadLibraries()
-  }, [])
+  }
+
+  loadLibraries()
+}, [])
 
   // Load original PDF
   useEffect(() => {
-    if (pdfFile && librariesLoaded && pdfjsLib && isClient) {
+    if (pdfFile && librariesLoaded && pdfLib && isClient) {
       loadPDF()
     }
-  }, [pdfFile, librariesLoaded, pdfjsLib, isClient])
+  }, [pdfFile, librariesLoaded, pdfLib, isClient])
 
   // Observe container size changes
   useEffect(() => {
@@ -135,7 +139,7 @@ export default function PDFEditor({ pdfFile, onClose }) {
       setPdfData(uint8Array)
       setOriginalFile(pdfFile)
 
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
+      const loadingTask = pdfLib.getDocument({ data: arrayBuffer })
       const pdf = await loadingTask.promise
       setPdfDocument(pdf)
       setNumPages(pdf.numPages)
@@ -498,7 +502,7 @@ useEffect(() => {
       setMergeFile(file)
       try {
         const arrayBuffer = await file.arrayBuffer()
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
+        const loadingTask = pdfLib.getDocument({ data: arrayBuffer })
         const pdf = await loadingTask.promise
         setMergeDocument(pdf)
         const previewPages = []
@@ -963,7 +967,7 @@ useEffect(() => {
 
   const styles = getStyles()
 
-  if (!isClient || !librariesLoaded || !pdfjsLib) {
+  if (!isClient || !librariesLoaded || !pdfLib) {
     return <div style={styles.loading}><div style={styles.loadingSpinner}>Loading PDF Libraries...</div></div>
   }
 

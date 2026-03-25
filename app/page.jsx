@@ -2,8 +2,12 @@
 import { useState } from "react"
 import Navbar from "./_component/Navbar"
 import Upload from "./_component/Upload"
-import PDFEditor from "./_component/PDFEDITOR"
 import "./App.css"
+import dynamic from "next/dynamic";
+const PDFEditor = dynamic(() => import("./_component/PDFEDITOR"), {
+  ssr: false,
+});
+
 
 export default function Home() {
   const [editingPdf, setEditingPdf] = useState(null)
