@@ -86,9 +86,10 @@ const [pdfLib, setPdfLib] = useState(null)
 
      useEffect(() => {
     const loadLib = async () => {
-      const lib = await import("pdfjs-dist"); // ✅ only here
+      const lib = await import("pdfjs-dist/build/pdf.mjs");
+
       lib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
       setPdfjsLib(lib);
     };
 
