@@ -1,15 +1,19 @@
+// next.config.js
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ["pdfjs-dist"],
-  },
-
-  webpack: (config: any) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = [...(config.externals || []), 'canvas']
+    }
+    
+    // pdfjs-dist ke liye
+    config.resolve.alias = {
+      ...config.resolve.alias,
       canvas: false,
-    };
-    return config;
+    }
+    
+    return config
   },
-};
+}
 
-export default nextConfig;
+module.exports = nextConfig
