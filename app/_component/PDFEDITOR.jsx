@@ -84,24 +84,21 @@ const [pdfLib, setPdfLib] = useState(null)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Load libraries
- useEffect(() => {
-  setIsClient(true)
+    useEffect(() => {
+    const loadPDF = async () => {
+      const pdfjs = await import("pdfjs-dist/webpack") // ✅ correct
 
-  const loadLibraries = async () => {
-    try {
-      const pdfjs = await import("pdfjs-dist/legacy/build/pdf")
       pdfjs.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
-        setPdfLib(pdfjs)     
-        setLibrariesLoaded(true)
-    } catch (err) {
-      setError("Failed to load PDF libraries: " + err.message)
-    }
-  }
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
 
-  loadLibraries()
-}, [])
+      const fileURL = URL.createObjectURL(pdfFile)
+
+      const pdf = await pdfjs.getDocument(fileURL).promise
+      console.log("PDF loaded:", pdf)
+    }
+
+    if (pdfFile) loadPDF()
+  }, [pdfFile])
 
   // Load original PDF
   useEffect(() => {
