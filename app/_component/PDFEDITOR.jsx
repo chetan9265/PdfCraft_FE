@@ -1,75 +1,87 @@
-"use client"
-import { useState, useRef, useEffect } from "react"
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
-// ===== Icons =====
+// app/_component/PDFEDITOR.jsx
+'use client';
+
+import { useState, useRef, useEffect } from "react";
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { 
   FiRotateCw, FiEye, FiEyeOff, FiChevronUp, FiChevronDown, 
   FiTrash2, FiType, FiImage, FiDownload, FiRefreshCw,
-  FiPlus, FiX, FiMinus, FiMaximize, FiMinimize,FiLayers,
+  FiPlus, FiX, FiMinus, FiMaximize, FiMinimize, FiLayers,
   FiChevronLeft, FiChevronRight
-} from 'react-icons/fi'
-import { MdOutlinePreview } from 'react-icons/md'
-
+} from 'react-icons/fi';
+import { MdOutlinePreview } from 'react-icons/md';
 
 export default function PDFEditor({ pdfFile, onClose }) {
-  // ===== ALL YOUR EXISTING STATE & FUNCTIONS GO HERE =====
   // Core state
-const [pdfLib, setPdfLib] = useState(null)
-  const [isClient, setIsClient] = useState(false)
-  const [librariesLoaded, setLibrariesLoaded] = useState(false)
-  const [pdfDocument, setPdfDocument] = useState(null)
-  const [numPages, setNumPages] = useState(0)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [scale, setScale] = useState(1.0)
-  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 })
+  const [pdfjsLib, setPdfjsLib] = useState(null);
+  const [pdfDocument, setPdfDocument] = useState(null);
+  const [numPages, setNumPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [scale, setScale] = useState(1.0);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
 
   // PDF data
-  const [pdfData, setPdfData] = useState(null)
-  const [originalFile, setOriginalFile] = useState(null)
+  const [pdfData, setPdfData] = useState(null);
+  const [originalFile, setOriginalFile] = useState(null);
 
   // Pages array
-  const [pages, setPages] = useState([])
-  const [selectedPages, setSelectedPages] = useState([])
-  const [pageRotations, setPageRotations] = useState({})
-  const [hiddenPages, setHiddenPages] = useState([])
+  const [pages, setPages] = useState([]);
+  const [selectedPages, setSelectedPages] = useState([]);
+  const [pageRotations, setPageRotations] = useState({});
+  const [hiddenPages, setHiddenPages] = useState([]);
 
   // Text overlays
-  const [textElements, setTextElements] = useState([])
-  const [textMode, setTextMode] = useState(false)
-  const [currentText, setCurrentText] = useState("")
-  const [textStyle, setTextStyle] = useState({ fontSize: 14, color: "#000000" })
-  const [isPlacingText, setIsPlacingText] = useState(false)
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
-  const [showTextPreview, setShowTextPreview] = useState(false)
+  const [textElements, setTextElements] = useState([]);
+  const [textMode, setTextMode] = useState(false);
+  const [currentText, setCurrentText] = useState("");
+  const [textStyle, setTextStyle] = useState({ fontSize: 14, color: "#000000" });
+  const [isPlacingText, setIsPlacingText] = useState(false);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [showTextPreview, setShowTextPreview] = useState(false);
 
   // New page from image
-  const [newPageImageFile, setNewPageImageFile] = useState(null)
-  const [newPagePosition, setNewPagePosition] = useState('after')
+  const [newPageImageFile, setNewPageImageFile] = useState(null);
+  const [newPagePosition, setNewPagePosition] = useState('after');
 
   // Merge PDF
-  const [mergeFile, setMergeFile] = useState(null)
-  const [showMerge, setShowMerge] = useState(false)
-  const [mergeDocument, setMergeDocument] = useState(null)
-  const [mergePages, setMergePages] = useState([])
-  const [showMergePreview, setShowMergePreview] = useState(false)
+  const [mergeFile, setMergeFile] = useState(null);
+  const [showMerge, setShowMerge] = useState(false);
+  const [mergeDocument, setMergeDocument] = useState(null);
+  const [mergePages, setMergePages] = useState([]);
+  const [showMergePreview, setShowMergePreview] = useState(false);
 
   // Window size for responsive design
   const [windowSize, setWindowSize] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 1200,
     height: typeof window !== 'undefined' ? window.innerHeight : 800,
-  })
+  });
 
   // Refs
-  const canvasRef = useRef(null)
-  const containerRef = useRef(null)
-  const newPageImageInputRef = useRef(null)
-  const sidebarRef = useRef(null)
-  const resizeObserverRef = useRef(null)
-
-  // User zoom flag
+  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const newPageImageInputRef = useRef(null);
+  const sidebarRef = useRef(null);
+  const resizeObserverRef = useRef(null);
+  const renderingTask = useRef(null);
+  const renderCancelled = useRef(false);
   const userZoomed = useRef(false);
+
+  // Load pdfjs-dist dynamically on client
+  useEffect(() => {
+    const loadPdfjs = async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs`;
+        setPdfjsLib(pdfjs);
+      } catch (err) {
+        console.error("Failed to load PDF library:", err);
+        setError("Failed to load PDF library");
+      }
+    };
+    loadPdfjs();
+  }, []);
 
   // Handle window resize
   useEffect(() => {
@@ -77,79 +89,69 @@ const [pdfLib, setPdfLib] = useState(null)
       setWindowSize({
         width: window.innerWidth,
         height: window.innerHeight,
-      })
-    }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-     useEffect(() => {
-    const loadLib = async () => {
-      const lib = await import("pdfjs-dist/build/pdf.mjs");
-
-      lib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
-      setPdfjsLib(lib);
+      });
     };
 
-    loadLib();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
- useEffect(() => {
-    if (!pdfjsLib || !pdfFile) return;
-
-    const loadPDF = async () => {
-      const url = URL.createObjectURL(pdfFile);
-      const pdf = await pdfjsLib.getDocument(url).promise;
-      console.log(pdf);
-    };
-
-    loadPDF();
-  }, [pdfjsLib, pdfFile]);
-
-  // Load original PDF
+  // Load PDF when pdfjsLib is ready
   useEffect(() => {
-    if (pdfFile && librariesLoaded && pdfLib && isClient) {
-      loadPDF()
+    if (pdfjsLib && pdfFile) {
+      loadPDF();
     }
-  }, [pdfFile, librariesLoaded, pdfLib, isClient])
+  }, [pdfjsLib, pdfFile]);
 
   // Observe container size changes
   useEffect(() => {
-    if (!containerRef.current || !pdfDocument) return
+    if (!containerRef.current || !pdfDocument) return;
 
     resizeObserverRef.current = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect
-      setContainerDimensions({ width, height })
+      const { width, height } = entries[0].contentRect;
+      setContainerDimensions({ width, height });
       if (!userZoomed.current) {
-        fitPageToContainer(pdfDocument)
+        fitPageToContainer(pdfDocument);
       }
-    })
+    });
 
-    resizeObserverRef.current.observe(containerRef.current)
+    resizeObserverRef.current.observe(containerRef.current);
 
     return () => {
       if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect()
+        resizeObserverRef.current.disconnect();
       }
-    }
-  }, [pdfDocument])
+    };
+  }, [pdfDocument]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      renderCancelled.current = true;
+      if (renderingTask.current) {
+        try {
+          renderingTask.current.cancel().catch(() => {});
+        } catch (e) {
+          // Ignore cancellation errors
+        }
+      }
+    };
+  }, []);
 
   const loadPDF = async () => {
     try {
-      setLoading(true)
-      const arrayBuffer = await pdfFile.arrayBuffer()
-      const uint8Array = new Uint8Array(arrayBuffer.slice(0))
-      setPdfData(uint8Array)
-      setOriginalFile(pdfFile)
+      setLoading(true);
+      const arrayBuffer = await pdfFile.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer.slice(0));
+      setPdfData(uint8Array);
+      setOriginalFile(pdfFile);
 
-      const loadingTask = pdfLib.getDocument({ data: arrayBuffer })
-      const pdf = await loadingTask.promise
-      setPdfDocument(pdf)
-      setNumPages(pdf.numPages)
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      setPdfDocument(pdf);
+      setNumPages(pdf.numPages);
 
-      const initialPages = []
+      const initialPages = [];
       for (let i = 1; i <= pdf.numPages; i++) {
         initialPages.push({
           id: `orig-${i}`,
@@ -157,226 +159,193 @@ const [pdfLib, setPdfLib] = useState(null)
           type: 'original',
           originalIndex: i - 1,
           hidden: false
-        })
+        });
       }
-      setPages(initialPages)
-
-      setTextElements([])
+      setPages(initialPages);
+      setTextElements([]);
 
       // Fit first page to container
-      await fitPageToContainer(pdf)
+      await fitPageToContainer(pdf);
 
-      setLoading(false)
+      setLoading(false);
     } catch (err) {
-      setError("Failed to load PDF: " + err.message)
-      setLoading(false)
+      setError("Failed to load PDF: " + err.message);
+      setLoading(false);
     }
-  }
+  };
 
-  // Fit page to container with proper scaling
   const fitPageToContainer = async (pdf) => {
-    if (!containerRef.current || !pdf) return
+    if (!containerRef.current || !pdf) return;
 
-    await new Promise(resolve => requestAnimationFrame(resolve))
+    await new Promise(resolve => requestAnimationFrame(resolve));
 
-    const container = containerRef.current
-    const containerWidth = container.clientWidth - 40
-    const containerHeight = container.clientHeight - 40
+    const container = containerRef.current;
+    const containerWidth = container.clientWidth - 40;
+    const containerHeight = container.clientHeight - 40;
 
     if (containerWidth <= 0 || containerHeight <= 0) {
-      setScale(1.0)
-      return
+      setScale(1.0);
+      return;
     }
 
-    const page = await pdf.getPage(1)
-    const viewport = page.getViewport({ scale: 1 })
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1 });
 
-    // Calculate scale to fit both width and height
-    const scaleWidth = containerWidth / viewport.width
-    const scaleHeight = containerHeight / viewport.height
-    let newScale = Math.min(scaleWidth, scaleHeight)
+    const scaleWidth = containerWidth / viewport.width;
+    const scaleHeight = containerHeight / viewport.height;
+    let newScale = Math.min(scaleWidth, scaleHeight);
 
-    // Responsive min/max scale
-    const minScale = 0.3
-    const maxScale = 2.5
+    const minScale = 0.3;
+    const maxScale = 2.5;
     
-    newScale = Math.max(newScale, minScale)
-    newScale = Math.min(newScale, maxScale)
+    newScale = Math.max(newScale, minScale);
+    newScale = Math.min(newScale, maxScale);
 
-    setScale(newScale)
-  }
+    setScale(newScale);
+  };
 
-  // Render current page with proper centering
-  // Add these refs near your other refs
-const [renderingTask, setRenderingTask] = useState(null);
-const renderCancelled = useRef(false);
-// Add these refs near your other refs
-
-// Update the renderPage function with better error handling
-const renderPage = async (pageNum) => {
-  if (!canvasRef.current || !pdfDocument) return;
-  
-  // Cancel previous rendering task if exists
-  if (renderingTask) {
-    renderCancelled.current = true;
-    try {
-      // Don't await cancel - let it happen in background
-      renderingTask.cancel().catch(() => {});
-    } catch (e) {
-      // Ignore cancellation errors
-    }
-    setRenderingTask(null);
-  }
-
-  renderCancelled.current = false;
-  const canvas = canvasRef.current;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const pageObj = pages.find(p => p.number === pageNum);
-  if (!pageObj) return;
-
-  if (pageObj.type === 'original') {
-    try {
-      const page = await pdfDocument.getPage(pageObj.originalIndex + 1);
-      const rotation = pageRotations[pageNum] || 0;
-      const viewport = page.getViewport({ scale, rotation });
-      
-      // Set canvas dimensions
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      const renderContext = { 
-        canvasContext: ctx, 
-        viewport,
-        intent: 'display'
-      };
-      
-      // Store the rendering task
-      const task = page.render(renderContext);
-      setRenderingTask(task);
-      
+  const renderPage = async (pageNum) => {
+    if (!canvasRef.current || !pdfDocument || !pdfjsLib) return;
+    
+    if (renderingTask.current) {
+      renderCancelled.current = true;
       try {
-        await task.promise;
-        if (!renderCancelled.current) {
-          drawTextOverlays(ctx, pageNum);
-        }
-      } catch (renderErr) {
-        // Only log if it's not a cancellation error
-        if (renderErr?.message !== 'Rendering cancelled' && 
-            !renderErr?.message?.includes('cancel')) {
-          console.error("Render error:", renderErr);
-        }
-      } finally {
-        if (!renderCancelled.current) {
-          setRenderingTask(null);
-        }
-      }
-    } catch (err) {
-      console.error("Page get error:", err);
-    }
-  } else if (pageObj.type === 'image') {
-    const img = new Image();
-    img.src = URL.createObjectURL(pageObj.file);
-    await new Promise((resolve) => {
-      img.onload = () => {
-        if (!renderCancelled.current) {
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          drawTextOverlays(ctx, pageNum);
-        }
-        URL.revokeObjectURL(img.src);
-        resolve();
-      };
-    });
-  }
-
-  if (!renderCancelled.current && isPlacingText && currentText && showTextPreview) {
-    ctx.font = `${textStyle.fontSize}px Arial`;
-    ctx.fillStyle = textStyle.color;
-    ctx.globalAlpha = 0.5;
-    ctx.fillText(currentText, mousePosition.x, mousePosition.y);
-    ctx.globalAlpha = 1;
-  }
-};
-
-// Cleanup on component unmount
-useEffect(() => {
-  return () => {
-    renderCancelled.current = true;
-    if (renderingTask) {
-      try {
-        renderingTask.cancel().catch(() => {});
+        renderingTask.current.cancel().catch(() => {});
       } catch (e) {
         // Ignore cancellation errors
       }
+      renderingTask.current = null;
     }
-  };
-}, []); // Empty dependency array - only on unmount
 
-// Update the useEffect that triggers render
-useEffect(() => {
-  let isActive = true;
-  
-  const doRender = async () => {
-    if (pdfDocument && currentPage && isActive) {
-      await renderPage(currentPage);
-    }
-  };
-  
-  doRender();
-  
-  // Cleanup function
-  return () => {
-    isActive = false;
-    renderCancelled.current = true;
-    if (renderingTask) {
+    renderCancelled.current = false;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const pageObj = pages.find(p => p.number === pageNum);
+    if (!pageObj) return;
+
+    if (pageObj.type === 'original') {
       try {
-        renderingTask.cancel().catch(() => {});
-      } catch (e) {
-        // Ignore cancellation errors
+        const page = await pdfDocument.getPage(pageObj.originalIndex + 1);
+        const rotation = pageRotations[pageNum] || 0;
+        const viewport = page.getViewport({ scale, rotation });
+        
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        const renderContext = { 
+          canvasContext: ctx, 
+          viewport,
+          intent: 'display'
+        };
+        
+        const task = page.render(renderContext);
+        renderingTask.current = task;
+        
+        try {
+          await task.promise;
+          if (!renderCancelled.current) {
+            drawTextOverlays(ctx, pageNum);
+          }
+        } catch (renderErr) {
+          if (renderErr?.message !== 'Rendering cancelled' && 
+              !renderErr?.message?.includes('cancel')) {
+            console.error("Render error:", renderErr);
+          }
+        } finally {
+          if (!renderCancelled.current) {
+            renderingTask.current = null;
+          }
+        }
+      } catch (err) {
+        console.error("Page get error:", err);
       }
+    } else if (pageObj.type === 'image') {
+      const img = new Image();
+      img.src = URL.createObjectURL(pageObj.file);
+      await new Promise((resolve) => {
+        img.onload = () => {
+          if (!renderCancelled.current) {
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            drawTextOverlays(ctx, pageNum);
+          }
+          URL.revokeObjectURL(img.src);
+          resolve();
+        };
+      });
+    }
+
+    if (!renderCancelled.current && isPlacingText && currentText && showTextPreview) {
+      ctx.font = `${textStyle.fontSize}px Arial`;
+      ctx.fillStyle = textStyle.color;
+      ctx.globalAlpha = 0.5;
+      ctx.fillText(currentText, mousePosition.x, mousePosition.y);
+      ctx.globalAlpha = 1;
     }
   };
-}, [currentPage, scale, pdfDocument, pageRotations, textElements, pages, isPlacingText, mousePosition, showTextPreview]);
 
+  // Trigger render on changes
+  useEffect(() => {
+    let isActive = true;
+    
+    const doRender = async () => {
+      if (pdfDocument && currentPage && isActive) {
+        await renderPage(currentPage);
+      }
+    };
+    
+    doRender();
+    
+    return () => {
+      isActive = false;
+      renderCancelled.current = true;
+      if (renderingTask.current) {
+        try {
+          renderingTask.current.cancel().catch(() => {});
+        } catch (e) {
+          // Ignore cancellation errors
+        }
+      }
+    };
+  }, [currentPage, scale, pdfDocument, pageRotations, textElements, pages, isPlacingText, mousePosition, showTextPreview]);
 
   const drawTextOverlays = (ctx, pageNum) => {
-    const pageTexts = textElements.filter(t => t.page === pageNum)
+    const pageTexts = textElements.filter(t => t.page === pageNum);
     pageTexts.forEach(t => {
-      ctx.font = `${t.fontSize}px Arial`
-      ctx.fillStyle = t.color
-      ctx.fillText(t.text, t.x, t.y)
-    })
-  }
+      ctx.font = `${t.fontSize}px Arial`;
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, t.x, t.y);
+    });
+  };
 
-  // ========== COORDINATE MAPPING ==========
   const getCanvasCoordinates = (e) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    const canvasX = (e.clientX - rect.left) * scaleX
-    const canvasY = (e.clientY - rect.top) * scaleY
-    return { x: canvasX, y: canvasY }
-  }
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const canvasX = (e.clientX - rect.left) * scaleX;
+    const canvasY = (e.clientY - rect.top) * scaleY;
+    return { x: canvasX, y: canvasY };
+  };
 
   const handleMouseMove = (e) => {
-    if (!canvasRef.current || !isPlacingText) return
-    const { x, y } = getCanvasCoordinates(e)
-    setMousePosition({ x, y })
-    setShowTextPreview(true)
-  }
+    if (!canvasRef.current || !isPlacingText) return;
+    const { x, y } = getCanvasCoordinates(e);
+    setMousePosition({ x, y });
+    setShowTextPreview(true);
+  };
 
   const handleMouseLeave = () => {
-    setShowTextPreview(false)
-  }
+    setShowTextPreview(false);
+  };
 
   const handleCanvasClick = (e) => {
-    if (!canvasRef.current) return
-    const { x, y } = getCanvasCoordinates(e)
+    if (!canvasRef.current) return;
+    const { x, y } = getCanvasCoordinates(e);
 
     if (textMode && isPlacingText && currentText.trim()) {
       setTextElements([...textElements, {
@@ -386,92 +355,89 @@ useEffect(() => {
         page: currentPage,
         fontSize: textStyle.fontSize,
         color: textStyle.color
-      }])
-      setCurrentText("")
-      setIsPlacingText(false)
-      setTextMode(false)
-      setError(`Text placed on page ${currentPage}`)
-      setTimeout(() => setError(""), 2000)
+      }]);
+      setCurrentText("");
+      setIsPlacingText(false);
+      setTextMode(false);
+      setError(`✓ Text placed on page ${currentPage}`);
+      setTimeout(() => setError(""), 2000);
     }
-  }
+  };
 
-  // ========== PAGE MANAGEMENT ==========
   const rotatePage = (pageNum, degrees = 90) => {
     setPageRotations(prev => ({
       ...prev,
       [pageNum]: ((prev[pageNum] || 0) + degrees) % 360
-    }))
-  }
+    }));
+  };
 
   const deleteSelectedPages = () => {
-    if (selectedPages.length === 0) return
-    const newPages = pages.filter(p => !selectedPages.includes(p.number))
+    if (selectedPages.length === 0) return;
+    const newPages = pages.filter(p => !selectedPages.includes(p.number));
     if (newPages.length === 0) {
-      setError("Cannot delete all pages")
-      return
+      setError("Cannot delete all pages");
+      return;
     }
-    setPages(newPages)
-    setHiddenPages([...hiddenPages, ...selectedPages])
-    setSelectedPages([])
-    setNumPages(newPages.length)
+    setPages(newPages);
+    setHiddenPages([...hiddenPages, ...selectedPages]);
+    setSelectedPages([]);
+    setNumPages(newPages.length);
     if (selectedPages.includes(currentPage)) {
-      setCurrentPage(newPages[0]?.number || 1)
+      setCurrentPage(newPages[0]?.number || 1);
     }
-  }
+  };
 
   const toggleHidePage = (pageNum) => {
     setHiddenPages(prev =>
       prev.includes(pageNum) ? prev.filter(p => p !== pageNum) : [...prev, pageNum]
-    )
-  }
+    );
+  };
 
   const movePage = (pageNum, direction) => {
-    const index = pages.findIndex(p => p.number === pageNum)
-    if (index === -1) return
-    const newPages = [...pages]
+    const index = pages.findIndex(p => p.number === pageNum);
+    if (index === -1) return;
+    const newPages = [...pages];
     if (direction === 'up' && index > 0) {
-      [newPages[index-1], newPages[index]] = [newPages[index], newPages[index-1]]
+      [newPages[index-1], newPages[index]] = [newPages[index], newPages[index-1]];
     } else if (direction === 'down' && index < pages.length-1) {
-      [newPages[index], newPages[index+1]] = [newPages[index+1], newPages[index]]
-    } else return
-    newPages.forEach((p, i) => { p.number = i+1 })
-    setPages(newPages)
-  }
+      [newPages[index], newPages[index+1]] = [newPages[index+1], newPages[index]];
+    } else return;
+    newPages.forEach((p, i) => { p.number = i+1; });
+    setPages(newPages);
+  };
 
-  // ========== TEXT TOOLS ==========
   const enableTextMode = () => {
-    setTextMode(true)
-    setIsPlacingText(true)
-    setCurrentText("")
-    setError(`Enter text and click on page ${currentPage}`)
-  }
+    setTextMode(true);
+    setIsPlacingText(true);
+    setCurrentText("");
+    setError(`Enter text and click on page ${currentPage}`);
+  };
 
   const deleteTextElement = (id) => {
-    setTextElements(textElements.filter(t => t.id !== id))
-  }
+    setTextElements(textElements.filter(t => t.id !== id));
+  };
 
-  // ========== NEW PAGE FROM IMAGE ==========
   const handleNewPageImageSelect = (e) => {
-    const file = e.target.files[0]
+    const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
-      setNewPageImageFile(file)
+      setNewPageImageFile(file);
     } else {
-      setError("Please select a valid image")
+      setError("Please select a valid image");
     }
-  }
+  };
 
   const addPageFromImage = async () => {
-    if (!newPageImageFile) return
+    if (!newPageImageFile) return;
     try {
-      setLoading(true)
-      const currentIndex = pages.findIndex(p => p.number === currentPage)
-      let insertIndex = newPagePosition === 'after' ? currentIndex + 1 : currentIndex
-      if (insertIndex < 0) insertIndex = 0
-      if (insertIndex > pages.length) insertIndex = pages.length
+      setLoading(true);
+      const currentIndex = pages.findIndex(p => p.number === currentPage);
+      let insertIndex = newPagePosition === 'after' ? currentIndex + 1 : currentIndex;
+      if (insertIndex < 0) insertIndex = 0;
+      if (insertIndex > pages.length) insertIndex = pages.length;
 
-      const img = new Image()
-      img.src = URL.createObjectURL(newPageImageFile)
-      await new Promise((resolve) => { img.onload = resolve })
+      const img = new Image();
+      img.src = URL.createObjectURL(newPageImageFile);
+      await new Promise((resolve) => { img.onload = resolve; });
 
       const newPageObj = {
         id: `img-${Date.now()}`,
@@ -481,101 +447,99 @@ useEffect(() => {
         width: img.width,
         height: img.height,
         hidden: false
-      }
-      URL.revokeObjectURL(img.src)
+      };
+      URL.revokeObjectURL(img.src);
 
-      const newPages = [...pages]
-      newPages.splice(insertIndex, 0, newPageObj)
-      newPages.forEach((p, idx) => { p.number = idx + 1 })
-      setPages(newPages)
-      setNumPages(newPages.length)
-      setCurrentPage(newPageObj.number)
-      setNewPageImageFile(null)
-      if (newPageImageInputRef.current) newPageImageInputRef.current.value = ''
-      setError(`New page added from image`)
-      setLoading(false)
+      const newPages = [...pages];
+      newPages.splice(insertIndex, 0, newPageObj);
+      newPages.forEach((p, idx) => { p.number = idx + 1; });
+      setPages(newPages);
+      setNumPages(newPages.length);
+      setCurrentPage(newPageObj.number);
+      setNewPageImageFile(null);
+      if (newPageImageInputRef.current) newPageImageInputRef.current.value = '';
+      setError(`✓ New page added from image`);
+      setLoading(false);
     } catch (err) {
-      setError("Failed to add page: " + err.message)
-      setLoading(false)
+      setError("Failed to add page: " + err.message);
+      setLoading(false);
     }
-  }
+  };
 
-  // ========== MERGE ==========
   const handleMergeFile = async (e) => {
-    const file = e.target.files[0]
+    const file = e.target.files[0];
     if (file && file.type === "application/pdf") {
-      setMergeFile(file)
+      setMergeFile(file);
       try {
-        const arrayBuffer = await file.arrayBuffer()
-        const loadingTask = pdfLib.getDocument({ data: arrayBuffer })
-        const pdf = await loadingTask.promise
-        setMergeDocument(pdf)
-        const previewPages = []
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        setMergeDocument(pdf);
+        const previewPages = [];
         for (let i = 1; i <= pdf.numPages; i++) {
-          previewPages.push({ number: i })
+          previewPages.push({ number: i });
         }
-        setMergePages(previewPages)
-        setShowMergePreview(true)
+        setMergePages(previewPages);
+        setShowMergePreview(true);
       } catch (err) {
-        setError("Failed to load merge PDF preview")
+        setError("Failed to load merge PDF preview");
       }
     }
-  }
+  };
 
   const previewMergedPDF = async () => {
-    if (!mergeFile) return
+    if (!mergeFile) return;
     try {
-      setLoading(true)
-      const dataCopy = pdfData.slice(0)
-      const pdfDoc = await PDFDocument.load(dataCopy)
-      const mergeArrayBuffer = await mergeFile.arrayBuffer()
-      const mergeDoc = await PDFDocument.load(mergeArrayBuffer)
+      setLoading(true);
+      const dataCopy = pdfData.slice(0);
+      const pdfDoc = await PDFDocument.load(dataCopy);
+      const mergeArrayBuffer = await mergeFile.arrayBuffer();
+      const mergeDoc = await PDFDocument.load(mergeArrayBuffer);
 
-      const previewPdf = await PDFDocument.create()
-      const visibleIndices = pages.filter(p => !p.hidden && p.type === 'original').map(p => p.originalIndex)
-      const origPages = await previewPdf.copyPages(pdfDoc, visibleIndices)
-      origPages.forEach(p => previewPdf.addPage(p))
+      const previewPdf = await PDFDocument.create();
+      const visibleIndices = pages.filter(p => !p.hidden && p.type === 'original').map(p => p.originalIndex);
+      const origPages = await previewPdf.copyPages(pdfDoc, visibleIndices);
+      origPages.forEach(p => previewPdf.addPage(p));
 
-      const mergePagesCopy = await previewPdf.copyPages(mergeDoc, mergeDoc.getPageIndices())
-      mergePagesCopy.forEach(p => previewPdf.addPage(p))
+      const mergePagesCopy = await previewPdf.copyPages(mergeDoc, mergeDoc.getPageIndices());
+      mergePagesCopy.forEach(p => previewPdf.addPage(p));
 
-      const previewBytes = await previewPdf.save()
-      const blob = new Blob([previewBytes], { type: "application/pdf" })
-      const url = window.URL.createObjectURL(blob)
-      window.open(url, '_blank')
-      setLoading(false)
+      const previewBytes = await previewPdf.save();
+      const blob = new Blob([previewBytes], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setLoading(false);
     } catch (err) {
-      setError("Failed to preview merged PDF")
-      setLoading(false)
+      setError("Failed to preview merged PDF");
+      setLoading(false);
     }
-  }
+  };
 
   const clearMergeFile = () => {
-    setMergeFile(null)
-    setMergeDocument(null)
-    setMergePages([])
-    setShowMergePreview(false)
-  }
+    setMergeFile(null);
+    setMergeDocument(null);
+    setMergePages([]);
+    setShowMergePreview(false);
+  };
 
-  // ========== DOWNLOAD ==========
   const applyEditsAndDownload = async () => {
-    if (!pdfData) return
+    if (!pdfData) return;
     try {
-      setLoading(true)
-      const pdfDoc = await PDFDocument.load(pdfData.slice(0))
-      const newPdf = await PDFDocument.create()
+      setLoading(true);
+      const pdfDoc = await PDFDocument.load(pdfData.slice(0));
+      const newPdf = await PDFDocument.create();
 
       for (const page of pages) {
-        if (page.hidden) continue
+        if (page.hidden) continue;
         if (page.type === 'original') {
-          const [copiedPage] = await newPdf.copyPages(pdfDoc, [page.originalIndex])
-          const rotation = pageRotations[page.number]
-          if (rotation) copiedPage.setRotation(rotation)
+          const [copiedPage] = await newPdf.copyPages(pdfDoc, [page.originalIndex]);
+          const rotation = pageRotations[page.number];
+          if (rotation) copiedPage.setRotation(rotation);
 
-          const pageTexts = textElements.filter(t => t.page === page.number)
+          const pageTexts = textElements.filter(t => t.page === page.number);
           if (pageTexts.length > 0) {
-            const font = await newPdf.embedFont(StandardFonts.Helvetica)
-            const pageHeight = copiedPage.getHeight()
+            const font = await newPdf.embedFont(StandardFonts.Helvetica);
+            const pageHeight = copiedPage.getHeight();
             pageTexts.forEach(t => {
               copiedPage.drawText(t.text, {
                 x: t.x,
@@ -587,48 +551,48 @@ useEffect(() => {
                   parseInt(t.color.slice(3,5),16)/255,
                   parseInt(t.color.slice(5,7),16)/255
                 )
-              })
-            })
+              });
+            });
           }
-          newPdf.addPage(copiedPage)
+          newPdf.addPage(copiedPage);
         } else if (page.type === 'image') {
-          const arrayBuffer = await page.file.arrayBuffer()
-          let image
+          const arrayBuffer = await page.file.arrayBuffer();
+          let image;
           if (page.file.type === 'image/jpeg' || page.file.type === 'image/jpg') {
-            image = await newPdf.embedJpg(arrayBuffer)
+            image = await newPdf.embedJpg(arrayBuffer);
           } else if (page.file.type === 'image/png') {
-            image = await newPdf.embedPng(arrayBuffer)
-          } else continue
-          const imgPage = newPdf.addPage([image.width, image.height])
-          imgPage.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height })
+            image = await newPdf.embedPng(arrayBuffer);
+          } else continue;
+          const imgPage = newPdf.addPage([image.width, image.height]);
+          imgPage.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
         }
       }
 
       if (mergeFile) {
-        const mergeArrayBuffer = await mergeFile.arrayBuffer()
-        const mergeDoc = await PDFDocument.load(mergeArrayBuffer)
-        const mergePagesCopy = await newPdf.copyPages(mergeDoc, mergeDoc.getPageIndices())
-        mergePagesCopy.forEach(p => newPdf.addPage(p))
+        const mergeArrayBuffer = await mergeFile.arrayBuffer();
+        const mergeDoc = await PDFDocument.load(mergeArrayBuffer);
+        const mergePagesCopy = await newPdf.copyPages(mergeDoc, mergeDoc.getPageIndices());
+        mergePagesCopy.forEach(p => newPdf.addPage(p));
       }
 
-      const modifiedPdfBytes = await newPdf.save()
-      const blob = new Blob([modifiedPdfBytes], { type: "application/pdf" })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `edited_${originalFile?.name?.replace(/\.[^/.]+$/, "") || 'document'}.pdf`
-      link.click()
-      window.URL.revokeObjectURL(url)
-      setLoading(false)
+      const modifiedPdfBytes = await newPdf.save();
+      const blob = new Blob([modifiedPdfBytes], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `edited_${originalFile?.name?.replace(/\.[^/.]+$/, "") || 'document'}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      setLoading(false);
     } catch (err) {
-      setError("Failed to apply edits: " + err.message)
-      setLoading(false)
+      setError("Failed to apply edits: " + err.message);
+      setLoading(false);
     }
-  }
+  };
 
   const resetEdits = () => {
     if (pdfDocument) {
-      const origPages = []
+      const origPages = [];
       for (let i = 1; i <= pdfDocument.numPages; i++) {
         origPages.push({
           id: `orig-${i}`,
@@ -636,80 +600,74 @@ useEffect(() => {
           type: 'original',
           originalIndex: i - 1,
           hidden: false
-        })
+        });
       }
-      setPages(origPages)
-      setNumPages(pdfDocument.numPages)
-      setCurrentPage(1)
-      setPageRotations({})
-      setHiddenPages([])
-      setSelectedPages([])
-      setTextElements([])
-      setTextMode(false)
-      setMergeFile(null)
-      setMergeDocument(null)
-      setMergePages([])
-      setShowMergePreview(false)
-      setNewPageImageFile(null)
-      if (newPageImageInputRef.current) newPageImageInputRef.current.value = ''
+      setPages(origPages);
+      setNumPages(pdfDocument.numPages);
+      setCurrentPage(1);
+      setPageRotations({});
+      setHiddenPages([]);
+      setSelectedPages([]);
+      setTextElements([]);
+      setTextMode(false);
+      setMergeFile(null);
+      setMergeDocument(null);
+      setMergePages([]);
+      setShowMergePreview(false);
+      setNewPageImageFile(null);
+      if (newPageImageInputRef.current) newPageImageInputRef.current.value = '';
     }
-  }
+  };
 
-  // Zoom handlers
   const zoomIn = () => {
     userZoomed.current = true;
     setScale(prev => Math.min(prev + 0.1, 2.5));
-  }
+  };
   
   const zoomOut = () => {
     userZoomed.current = true;
     setScale(prev => Math.max(prev - 0.1, 0.3));
-  }
+  };
 
   const resetZoom = () => {
     userZoomed.current = false;
     if (pdfDocument) {
       fitPageToContainer(pdfDocument);
     }
-  }
+  };
 
-  // Dynamic styles based on window size
   const getStyles = () => {
     const isMobile = windowSize.width <= 768;
     
     return {
-     container: {
-      width: '100%',
-      backgroundColor: '#f8fafc',
-      position: 'relative',
-    },
-    mainLayout: {
-      display: 'flex',
-      width: '100%',
-      flexDirection: isMobile ? 'column' : 'row',
-    },
-    sidebar: {
-      width: isMobile ? '90%' : '320px',
-      margin: isMobile ? '10px auto' : '10px',
-      backgroundColor: '#ffffff',
-      borderRight: isMobile ? 'none' : '1px solid #e2e8f0',
-      borderBottom: isMobile ? '1px solid #e2e8f0' : 'none',
-      borderRadius: isMobile ? '0 0 12px 12px' : '0',
-      padding: isMobile ? '16px' : '24px 20px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: isMobile ? '16px' : '24px',
-      boxShadow: isMobile ? '0 4px 12px rgba(0,0,0,0.03)' : '4px 0 12px rgba(0,0,0,0.03)',
-      flexShrink: 0,
-      // Large screen: FIXED height with overflow auto
-      ...(!isMobile && { 
-        height: '717px',
-        overflow: 'auto'  // YEH IMPORTANT HAI - content scroll hoga
-      }),
-      // Mobile: no height constraints
-      overflow: isMobile ? 'visible' : "auto",
-    },
-
+      container: {
+        width: '100%',
+        backgroundColor: '#f8fafc',
+        position: 'relative',
+      },
+      mainLayout: {
+        display: 'flex',
+        width: '100%',
+        flexDirection: isMobile ? 'column' : 'row',
+      },
+      sidebar: {
+        width: isMobile ? '90%' : '320px',
+        margin: isMobile ? '10px auto' : '10px',
+        backgroundColor: '#ffffff',
+        borderRight: isMobile ? 'none' : '1px solid #e2e8f0',
+        borderBottom: isMobile ? '1px solid #e2e8f0' : 'none',
+        borderRadius: isMobile ? '0 0 12px 12px' : '0',
+        padding: isMobile ? '16px' : '24px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: isMobile ? '16px' : '24px',
+        boxShadow: isMobile ? '0 4px 12px rgba(0,0,0,0.03)' : '4px 0 12px rgba(0,0,0,0.03)',
+        flexShrink: 0,
+        ...(!isMobile && { 
+          height: 'calc(100vh - 20px)',
+          overflowY: 'auto'
+        }),
+      },
       sidebarTitle: {
         margin: '0 0 16px 0',
         color: '#1e293b',
@@ -732,7 +690,7 @@ useEffect(() => {
         flexDirection: 'column',
         padding: isMobile ? '16px' : '24px',
         backgroundColor: '#f8fafc',
-        height: '100%', // Ensure viewer takes full height
+        height: '100%',
       },
       viewerControls: {
         display: 'flex',
@@ -764,10 +722,10 @@ useEffect(() => {
         padding: isMobile ? '10px' : '20px',
         borderRadius: '16px',
         boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.05)',
-        // Canvas height as per requirement: mobile 300px, large screen 100%
-        height: isMobile ? '300px' : '100%',
+        height: isMobile ? '300px' : 'calc(100vh - 200px)',
         width: '100%',
         minHeight: isMobile ? '300px' : 'auto',
+        overflow: 'auto',
       },
       thumbnails: {
         display: 'flex',
@@ -778,7 +736,6 @@ useEffect(() => {
         backgroundColor: '#ffffff',
         borderRadius: '12px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-        WebkitOverflowScrolling: 'touch',
       },
       thumbnail: {
         minWidth: isMobile ? '60px' : '90px',
@@ -791,7 +748,7 @@ useEffect(() => {
         justifyContent: 'center',
         cursor: 'pointer',
         flexShrink: 0,
-        transition: 'border-color 0.2s, transform 0.1s',
+        transition: 'all 0.2s',
       },
       thumbnailNumber: {
         fontSize: isMobile ? '10px' : '12px',
@@ -810,23 +767,6 @@ useEffect(() => {
         zIndex: 2000,
         boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
         fontSize: isMobile ? '0.85rem' : '0.95rem',
-        fontWeight: 500,
-        maxWidth: '90%',
-        textAlign: 'center',
-      },
-      success: {
-        position: 'fixed',
-        top: '20px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        backgroundColor: '#10b981',
-        color: 'white',
-        padding: isMobile ? '10px 20px' : '12px 24px',
-        borderRadius: '30px',
-        zIndex: 2000,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        fontSize: isMobile ? '0.85rem' : '0.95rem',
-        fontWeight: 500,
         maxWidth: '90%',
         textAlign: 'center',
       },
@@ -859,8 +799,6 @@ useEffect(() => {
         border: '1px solid #e2e8f0',
         borderRadius: '8px',
         fontSize: isMobile ? '0.85rem' : '0.95rem',
-        transition: 'border-color 0.2s',
-        outline: 'none',
       },
       fileInput: {
         width: '100%',
@@ -870,7 +808,6 @@ useEffect(() => {
         borderRadius: '8px',
         backgroundColor: '#f0f7ff',
         cursor: 'pointer',
-        fontSize: isMobile ? '0.85rem' : '0.95rem',
       },
       hint: {
         fontSize: isMobile ? '0.7rem' : '0.8rem',
@@ -902,11 +839,6 @@ useEffect(() => {
         border: 'none',
         borderRadius: '4px',
         cursor: 'pointer',
-        fontSize: isMobile ? '0.7rem' : '0.8rem',
-        transition: 'background-color 0.15s',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
       },
       textStyleControls: {
         display: 'flex',
@@ -920,7 +852,6 @@ useEffect(() => {
         backgroundColor: '#e8f5e9',
         borderRadius: '8px',
         border: '1px solid #c8e6c9',
-        fontSize: isMobile ? '0.85rem' : '0.95rem',
       },
       mergeActions: {
         display: 'flex',
@@ -936,12 +867,10 @@ useEffect(() => {
         border: 'none',
         borderRadius: '6px',
         cursor: 'pointer',
-        transition: 'background-color 0.15s',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: '6px',
-        fontSize: isMobile ? '0.8rem' : '0.9rem',
       },
       clearButton: {
         padding: isMobile ? '6px 12px' : '8px 16px',
@@ -950,12 +879,10 @@ useEffect(() => {
         border: 'none',
         borderRadius: '6px',
         cursor: 'pointer',
-        transition: 'background-color 0.15s',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: '6px',
-        fontSize: isMobile ? '0.8rem' : '0.9rem',
       },
       select: {
         padding: isMobile ? '6px' : '8px',
@@ -965,15 +892,18 @@ useEffect(() => {
         width: '100%',
         backgroundColor: '#ffffff',
         cursor: 'pointer',
-        fontSize: isMobile ? '0.85rem' : '0.95rem',
       },
     };
-  }
+  };
 
-  const styles = getStyles()
+  const styles = getStyles();
 
-  if (!isClient || !librariesLoaded || !pdfLib) {
-    return <div style={styles.loading}><div style={styles.loadingSpinner}>Loading PDF Libraries...</div></div>
+  if (!pdfjsLib) {
+    return (
+      <div style={styles.loading}>
+        <div style={styles.loadingSpinner}>Loading PDF Libraries...</div>
+      </div>
+    );
   }
 
   return (
@@ -985,53 +915,21 @@ useEffect(() => {
           padding: 0;
         }
 
-        /* Mobile styles */
         @media (max-width: 768px) {
           .btn-primary, .btn-success {
             padding: 8px 12px;
             font-size: 0.85rem;
           }
-          
           .page-item {
             padding: 8px 12px;
-            font-size: 0.85rem;
           }
-          
-          .page-actions button {
-            padding: 4px 6px;
-            font-size: 0.75rem;
-          }
-          
           .control-btn {
             padding: 6px 10px;
           }
-          
-          .tool-section {
-            padding: 16px;
-          }
         }
-        
-        /* Small mobile styles */
-        @media (max-width: 480px) {
-          .page-controls {
-            width: 100%;
-            justify-content: center;
-          }
-          
-          .zoom-controls {
-            width: 100%;
-            justify-content: center;
-          }
-          
-          .viewer-controls {
-            flex-direction: column;
-          }
-        }
-        
-        /* Thumbnails scrollbar */
+
         .thumbnails {
           scrollbar-width: thin;
-          scrollbar-color: #94a3b8 #e2e8f0;
         }
         
         .thumbnails::-webkit-scrollbar {
@@ -1047,8 +945,7 @@ useEffect(() => {
           background-color: #94a3b8;
           border-radius: 10px;
         }
-        
-        /* Button styles */
+
         .btn-primary {
           padding: ${windowSize.width <= 768 ? '8px 12px' : '10px 16px'};
           background-color: #3b82f6;
@@ -1058,18 +955,16 @@ useEffect(() => {
           cursor: pointer;
           margin: 4px 0;
           width: 100%;
-          font-size: ${windowSize.width <= 768 ? '0.85rem' : '0.95rem'};
           font-weight: 500;
-          transition: background-color 0.15s, transform 0.1s;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 8px;
         }
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
           background-color: #2563eb;
         }
-        .btn-primary:active {
+        .btn-primary:active:not(:disabled) {
           transform: scale(0.98);
         }
         .btn-primary:disabled {
@@ -1086,9 +981,7 @@ useEffect(() => {
           cursor: pointer;
           margin: 4px 0;
           width: 100%;
-          font-size: ${windowSize.width <= 768 ? '0.85rem' : '0.95rem'};
           font-weight: 500;
-          transition: background-color 0.15s;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1105,10 +998,8 @@ useEffect(() => {
           border: none;
           border-radius: 12px;
           cursor: pointer;
-          font-size: ${windowSize.width <= 768 ? '0.9rem' : '1rem'};
           font-weight: 600;
           margin-top: 16px;
-          transition: background-color 0.15s;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1125,10 +1016,8 @@ useEffect(() => {
           border: none;
           border-radius: 12px;
           cursor: pointer;
-          font-size: ${windowSize.width <= 768 ? '0.9rem' : '1rem'};
           font-weight: 600;
           margin-top: 8px;
-          transition: background-color 0.15s;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1144,8 +1033,6 @@ useEffect(() => {
           gap: 10px;
           padding: ${windowSize.width <= 768 ? '8px 12px' : '12px 16px'};
           border-bottom: 1px solid #f1f5f9;
-          font-size: ${windowSize.width <= 768 ? '0.85rem' : '0.95rem'};
-          transition: background-color 0.1s;
         }
         .page-item:hover {
           background-color: #f8fafc;
@@ -1162,15 +1049,12 @@ useEffect(() => {
           border: 1px solid #e2e8f0;
           border-radius: 6px;
           cursor: pointer;
-          font-size: ${windowSize.width <= 768 ? '0.75rem' : '0.85rem'};
-          transition: background-color 0.15s, border-color 0.15s;
           display: inline-flex;
           align-items: center;
           justify-content: center;
         }
         .page-actions button:hover {
           background-color: #f1f5f9;
-          border-color: #94a3b8;
         }
 
         .control-btn {
@@ -1179,8 +1063,6 @@ useEffect(() => {
           border: 1px solid #e2e8f0;
           border-radius: 8px;
           cursor: pointer;
-          font-size: 1rem;
-          transition: background-color 0.15s;
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -1195,14 +1077,12 @@ useEffect(() => {
           border: 1px solid #e2e8f0;
           border-radius: 6px;
           cursor: pointer;
-          font-size: ${windowSize.width <= 768 ? '0.7rem' : '0.8rem'};
           margin-left: 4px;
         }
         .reset-zoom-btn:hover {
           background-color: #e2e8f0;
         }
 
-        /* Canvas styles */
         canvas {
           display: block;
           max-width: 100%;
@@ -1214,24 +1094,20 @@ useEffect(() => {
           margin: auto;
         }
 
-        /* Tool section styles */
         .tool-section {
           background-color: #ffffff;
           border-radius: 16px;
           padding: ${windowSize.width <= 768 ? '16px' : '20px'};
           border: 1px solid #e2e8f0;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-          transition: box-shadow 0.2s, border-color 0.2s;
         }
         .tool-section:hover {
           border-color: #3b82f6;
-          box-shadow: 0 4px 12px rgba(59,130,246,0.1);
         }
       `}</style>
 
       <div style={styles.container}>
         {error && (
-          <div style={error.includes('✓') ? styles.success : styles.error}>
+          <div style={error.includes('✓') ? { ...styles.error, backgroundColor: '#10b981' } : styles.error}>
             {error}
           </div>
         )}
@@ -1241,19 +1117,15 @@ useEffect(() => {
           </div>
         )}
 
-        <div className="main-layout" style={styles.mainLayout}>
+        <div style={styles.mainLayout}>
           {/* Sidebar */}
-          <div className="sidebar" style={styles.sidebar} ref={sidebarRef}>
+          <div style={styles.sidebar} ref={sidebarRef}>
             <h3 style={styles.sidebarTitle}>PDF Tools - Page {currentPage}</h3>
 
             {/* Page Management */}
             <div className="tool-section">
               <h4 style={{ margin: '0 0 12px 0', color: '#1e293b' }}>Pages</h4>
-              <button 
-                onClick={deleteSelectedPages} 
-                disabled={selectedPages.length === 0} 
-                className="btn-primary"
-              >
+              <button onClick={deleteSelectedPages} disabled={selectedPages.length === 0} className="btn-primary">
                 <FiTrash2 /> Delete Selected ({selectedPages.length})
               </button>
               <div style={styles.pageList}>
@@ -1269,9 +1141,9 @@ useEffect(() => {
                       checked={selectedPages.includes(page.number)}
                       onChange={() => {
                         if (selectedPages.includes(page.number))
-                          setSelectedPages(selectedPages.filter(p => p !== page.number))
+                          setSelectedPages(selectedPages.filter(p => p !== page.number));
                         else
-                          setSelectedPages([...selectedPages, page.number])
+                          setSelectedPages([...selectedPages, page.number]);
                       }} 
                     />
                     <span 
@@ -1382,10 +1254,7 @@ useEffect(() => {
             {/* Merge PDF */}
             <div className="tool-section">
               <h4 style={{ margin: '0 0 12px 0', color: '#1e293b' }}>Merge PDF</h4>
-              <button 
-                onClick={() => setShowMerge(!showMerge)} 
-                className="btn-primary"
-              >
+              <button onClick={() => setShowMerge(!showMerge)} className="btn-primary">
                 <FiLayers /> {showMerge ? 'Hide' : 'Merge Another PDF'}
               </button>
               {showMerge && (
@@ -1424,9 +1293,9 @@ useEffect(() => {
           </div>
 
           {/* Viewer */}
-          <div className="viewer" style={styles.viewer}>
-            <div className="viewer-controls" style={styles.viewerControls}>
-              <div className="page-controls" style={styles.pageControls}>
+          <div style={styles.viewer}>
+            <div style={styles.viewerControls}>
+              <div style={styles.pageControls}>
                 <button 
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
@@ -1445,7 +1314,7 @@ useEffect(() => {
                   <FiChevronRight />
                 </button>
               </div>
-              <div className="zoom-controls" style={styles.zoomControls}>
+              <div style={styles.zoomControls}>
                 <button onClick={zoomOut} className="control-btn" title="Zoom Out"><FiMinus /></button>
                 <span style={{ minWidth: '60px', textAlign: 'center', fontWeight: 600, color: '#3b82f6' }}>
                   {Math.round(scale * 100)}%
@@ -1463,7 +1332,6 @@ useEffect(() => {
               onMouseMove={handleMouseMove} 
               onMouseLeave={handleMouseLeave} 
               ref={containerRef}
-              className="canvasContainer"
             >
               <canvas 
                 ref={canvasRef} 
@@ -1494,5 +1362,5 @@ useEffect(() => {
         </div>
       </div>
     </>
-  )
+  );
 }
