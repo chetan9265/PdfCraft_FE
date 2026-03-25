@@ -86,7 +86,7 @@ const [pdfLib, setPdfLib] = useState(null)
 
      useEffect(() => {
     const loadLib = async () => {
-      const lib = await import("pdfjs-dist/webpack"); // ✅ only here
+      const lib = await import("pdfjs-dist"); // ✅ only here
       lib.GlobalWorkerOptions.workerSrc =
         "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
       setPdfjsLib(lib);

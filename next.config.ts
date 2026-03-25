@@ -1,8 +1,6 @@
 const nextConfig = {
-  turbopack: {},
-
   experimental: {
-    serverComponentsExternalPackages: ["pdfjs-dist"], // 🔥 THIS LINE FIXES EVERYTHING
+    serverComponentsExternalPackages: ["pdfjs-dist"],
   },
 
   webpack: (config: any) => {
