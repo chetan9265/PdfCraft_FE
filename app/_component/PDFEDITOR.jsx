@@ -84,21 +84,28 @@ const [pdfLib, setPdfLib] = useState(null)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-    useEffect(() => {
+     useEffect(() => {
+    const loadLib = async () => {
+      const lib = await import("pdfjs-dist/webpack"); // ✅ only here
+      lib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      setPdfjsLib(lib);
+    };
+
+    loadLib();
+  }, []);
+
+ useEffect(() => {
+    if (!pdfjsLib || !pdfFile) return;
+
     const loadPDF = async () => {
-      const pdfjs = await import("pdfjs-dist/webpack") // ✅ correct
+      const url = URL.createObjectURL(pdfFile);
+      const pdf = await pdfjsLib.getDocument(url).promise;
+      console.log(pdf);
+    };
 
-      pdfjs.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
-
-      const fileURL = URL.createObjectURL(pdfFile)
-
-      const pdf = await pdfjs.getDocument(fileURL).promise
-      console.log("PDF loaded:", pdf)
-    }
-
-    if (pdfFile) loadPDF()
-  }, [pdfFile])
+    loadPDF();
+  }, [pdfjsLib, pdfFile]);
 
   // Load original PDF
   useEffect(() => {
